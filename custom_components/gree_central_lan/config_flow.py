@@ -9,7 +9,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, UnitOfTemperature
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er, selector
 
 from .const import (
@@ -32,21 +32,38 @@ LOGGER = logging.getLogger(__name__)
 STEP_BRIDGE = "bridge"
 STEP_GENERAL = "general"
 STEP_SENSOR = "sensor"
+TEMPERATURE_UNITS = {
+    UnitOfTemperature.CELSIUS,
+    UnitOfTemperature.FAHRENHEIT,
+    UnitOfTemperature.KELVIN,
+}
 
 
-def _sensor_entities_for_area(hass, area_id: str) -> list[str]:
-    """Return sensor entities assigned to a room, directly or via devices."""
+def _is_temperature_sensor(entry: er.RegistryEntry) -> bool:
+    """Return whether an entity registry entry represents a temperature sensor."""
+    if entry.domain != "sensor" or entry.disabled_by is not None:
+        return False
+
+    device_class = entry.device_class or entry.original_device_class
+    return (
+        device_class == "temperature"
+        or entry.unit_of_measurement in TEMPERATURE_UNITS
+    )
+
+
+def _temperature_sensor_entities_for_area(hass, area_id: str) -> list[str]:
+    """Return temperature sensors assigned to a room, directly or via devices."""
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
     entity_ids: set[str] = set()
 
     for entry in er.async_entries_for_area(entity_registry, area_id):
-        if entry.domain == "sensor" and entry.disabled_by is None:
+        if _is_temperature_sensor(entry):
             entity_ids.add(entry.entity_id)
 
     for device in dr.async_entries_for_area(device_registry, area_id):
         for entry in er.async_entries_for_device(entity_registry, device.id):
-            if entry.domain == "sensor" and entry.disabled_by is None:
+            if _is_temperature_sensor(entry):
                 entity_ids.add(entry.entity_id)
 
     return sorted(
@@ -225,7 +242,7 @@ class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             return await self.async_step_unit()
 
-        sensor_candidates = _sensor_entities_for_area(self.hass, area_id)
+        sensor_candidates = _temperature_sensor_entities_for_area(self.hass, area_id)
         default_sensor = defaults.get(ATTR_TEMPERATURE_SENSOR, "")
         if default_sensor not in sensor_candidates:
             default_sensor = _default_area_temperature_sensor(self.hass, area_id)
@@ -460,7 +477,7 @@ class GreeCentralLanOptionsFlow(config_entries.OptionsFlowWithReload):
                 )
             return await self.async_step_unit()
 
-        sensor_candidates = _sensor_entities_for_area(self.hass, area_id)
+        sensor_candidates = _temperature_sensor_entities_for_area(self.hass, area_id)
         default_sensor = defaults.get(ATTR_TEMPERATURE_SENSOR, "")
         if default_sensor not in sensor_candidates:
             default_sensor = _default_area_temperature_sensor(self.hass, area_id)
