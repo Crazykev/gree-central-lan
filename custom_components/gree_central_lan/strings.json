@@ -18,9 +18,16 @@
       },
       "unit": {
         "title": "Configure indoor unit",
-        "description": "Configure {unit_name} ({unit_mac}). The selected temperature sensor will be shown as the climate card's current temperature.",
+        "description": "Configure {unit_name} ({unit_mac}). Choose the display name and room for this indoor unit.",
         "data": {
           "name": "Display name",
+          "area_id": "Room"
+        }
+      },
+      "sensor": {
+        "title": "Choose temperature sensor",
+        "description": "Choose the room thermometer for {unit_name} ({unit_mac}). Only sensor entities from {area_name} are shown.",
+        "data": {
           "temperature_sensor": "Temperature sensor"
         }
       }
@@ -40,9 +47,16 @@
       },
       "unit": {
         "title": "Configure indoor unit",
-        "description": "Update {unit_name} ({unit_mac}).",
+        "description": "Update the display name and room for {unit_name} ({unit_mac}).",
         "data": {
           "name": "Display name",
+          "area_id": "Room"
+        }
+      },
+      "sensor": {
+        "title": "Choose temperature sensor",
+        "description": "Choose the room thermometer for {unit_name} ({unit_mac}). Only sensor entities from {area_name} are shown.",
+        "data": {
           "temperature_sensor": "Temperature sensor"
         }
       }

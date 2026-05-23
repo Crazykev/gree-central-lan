@@ -15,6 +15,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, CONF_NAME, UnitOfTemperature
 from homeassistant.core import Event, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -23,6 +24,7 @@ from homeassistant.util.unit_conversion import TemperatureConverter
 from . import GreeCentralConfigEntry
 from .const import (
     ATTR_TEMPERATURE_SENSOR,
+    CONF_AREA_IDS,
     CONF_DISPLAY_NAMES,
     CONF_TEMPERATURE_SENSORS,
     DEVICE_TO_HVAC,
@@ -48,6 +50,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the climate platform for one controller config entry."""
     client: GreeCentralClient = entry.runtime_data.client
+    area_ids = entry.options.get(CONF_AREA_IDS, {})
     display_names = entry.options.get(CONF_DISPLAY_NAMES, {})
     sensors = entry.options.get(CONF_TEMPERATURE_SENSORS, {})
 
@@ -55,6 +58,7 @@ async def async_setup_entry(
         GreeCentralClimateEntity(
             client=client,
             subdevice=SubDeviceInfo.from_dict(subdevice),
+            area_id=area_ids.get(subdevice["mac"]),
             display_name=str(display_names.get(subdevice["mac"], subdevice["name"])),
             temperature_sensor=sensors.get(subdevice["mac"]),
         )
@@ -87,11 +91,13 @@ class GreeCentralClimateEntity(ClimateEntity):
         *,
         client: GreeCentralClient,
         subdevice: SubDeviceInfo,
+        area_id: str | None,
         display_name: str,
         temperature_sensor: str | None,
     ) -> None:
         self._client = client
         self._subdevice = subdevice
+        self._area_id = area_id or None
         self._display_name = display_name
         self._temperature_sensor = temperature_sensor or None
         self._sensor_temperature: float | None = None
@@ -116,6 +122,14 @@ class GreeCentralClimateEntity(ClimateEntity):
         self._unsubscribe_state_listener = self._client.async_add_listener(
             self._handle_client_update
         )
+
+        if self._area_id:
+            device_registry = dr.async_get(self.hass)
+            device = device_registry.async_get_device(
+                identifiers={(DOMAIN, self._subdevice.mac)}
+            )
+            if device is not None and device.area_id != self._area_id:
+                device_registry.async_update_device(device.id, area_id=self._area_id)
 
         if self._temperature_sensor:
             self._unsubscribe_sensor_listener = async_track_state_change_event(

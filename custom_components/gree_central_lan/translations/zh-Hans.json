@@ -18,9 +18,16 @@
       },
       "unit": {
         "title": "配置内机",
-        "description": "配置 {unit_name} ({unit_mac})。所选温度计会作为 climate 卡片中的当前温度显示。",
+        "description": "配置 {unit_name} ({unit_mac})。先为这台内机选择显示名称和房间。",
         "data": {
           "name": "显示名称",
+          "area_id": "房间"
+        }
+      },
+      "sensor": {
+        "title": "选择温度传感器",
+        "description": "为 {unit_name} ({unit_mac}) 选择房间温度计。这里只显示 {area_name} 里的传感器实体。",
+        "data": {
           "temperature_sensor": "温度传感器"
         }
       }
@@ -40,9 +47,16 @@
       },
       "unit": {
         "title": "配置内机",
-        "description": "更新 {unit_name} ({unit_mac}) 的显示名称和温度计。",
+        "description": "更新 {unit_name} ({unit_mac}) 的显示名称和房间。",
         "data": {
           "name": "显示名称",
+          "area_id": "房间"
+        }
+      },
+      "sensor": {
+        "title": "选择温度传感器",
+        "description": "为 {unit_name} ({unit_mac}) 选择房间温度计。这里只显示 {area_name} 里的传感器实体。",
+        "data": {
           "temperature_sensor": "温度传感器"
         }
       }
