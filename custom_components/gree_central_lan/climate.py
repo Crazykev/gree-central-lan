@@ -18,7 +18,6 @@ from homeassistant.core import Event, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.helpers.typing import EventStateChangedData
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import GreeCentralConfigEntry
@@ -280,7 +279,7 @@ class GreeCentralClimateEntity(ClimateEntity):
         self._sensor_temperature = numeric
 
     @callback
-    def _async_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
+    def _async_sensor_changed(self, event: Event[Any]) -> None:
         """Push linked sensor changes straight into the climate entity."""
         new_state = event.data.get("new_state")
         if new_state is None:
@@ -294,4 +293,3 @@ class GreeCentralClimateEntity(ClimateEntity):
     @property
     def _state(self) -> ClimateState | None:
         return self._client.get_state(self._subdevice.mac)
-
