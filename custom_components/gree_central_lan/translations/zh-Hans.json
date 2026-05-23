@@ -31,6 +31,13 @@
   },
   "options": {
     "step": {
+      "general": {
+        "title": "通用选项",
+        "description": "设置一个兜底同步间隔，用来补偿 Home Assistant 外部发生的状态变更。设为 0 表示保持纯推送模式，不做后台轮询。",
+        "data": {
+          "sync_interval_seconds": "兜底同步间隔"
+        }
+      },
       "unit": {
         "title": "配置内机",
         "description": "更新 {unit_name} ({unit_mac}) 的显示名称和温度计。",

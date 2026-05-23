@@ -16,7 +16,9 @@ from .const import (
     ATTR_TEMPERATURE_SENSOR,
     CONF_DISPLAY_NAMES,
     CONF_SUBDEVICES,
+    CONF_SYNC_INTERVAL_SECONDS,
     CONF_TEMPERATURE_SENSORS,
+    DEFAULT_SYNC_INTERVAL_SECONDS,
     DEFAULT_PORT,
     DOMAIN,
 )
@@ -26,6 +28,7 @@ from .protocol import GreeProtocolError, async_discover_bridges, async_probe_bri
 LOGGER = logging.getLogger(__name__)
 
 STEP_BRIDGE = "bridge"
+STEP_GENERAL = "general"
 
 
 class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -39,6 +42,7 @@ class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._subdevices: list[SubDeviceInfo] = []
         self._unit_index = 0
         self._unit_settings: dict[str, dict[str, str]] = {}
+        self._sync_interval_seconds = DEFAULT_SYNC_INTERVAL_SECONDS
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Discover controllers on the current LAN and let the user pick one."""
@@ -189,6 +193,7 @@ class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             options={
                 CONF_DISPLAY_NAMES: display_names,
                 CONF_TEMPERATURE_SENSORS: temperature_sensors,
+                CONF_SYNC_INTERVAL_SECONDS: self._sync_interval_seconds,
             },
         )
 
@@ -210,12 +215,50 @@ class GreeCentralLanOptionsFlow(config_entries.OptionsFlowWithReload):
         ]
         self._unit_index = 0
         self._unit_settings: dict[str, dict[str, str]] = {}
+        self._sync_interval_seconds = int(
+            config_entry.options.get(
+                CONF_SYNC_INTERVAL_SECONDS,
+                DEFAULT_SYNC_INTERVAL_SECONDS,
+            )
+        )
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        """Start the sequential unit editor."""
-        if not self._subdevices:
-            return self.async_create_entry(title="", data={})
-        return await self.async_step_unit()
+        """Entry point for editing options."""
+        return await self.async_step_general(user_input)
+
+    async def async_step_general(self, user_input: dict[str, Any] | None = None):
+        """Edit integration-wide options before unit-specific settings."""
+        if user_input is not None:
+            self._sync_interval_seconds = max(
+                0,
+                int(user_input[CONF_SYNC_INTERVAL_SECONDS]),
+            )
+            if not self._subdevices:
+                return self.async_create_entry(
+                    title="",
+                    data={CONF_SYNC_INTERVAL_SECONDS: self._sync_interval_seconds},
+                )
+            return await self.async_step_unit()
+
+        return self.async_show_form(
+            step_id=STEP_GENERAL,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SYNC_INTERVAL_SECONDS,
+                        default=self._sync_interval_seconds,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=3600,
+                            step=5,
+                            mode=selector.NumberSelectorMode.BOX,
+                            unit_of_measurement="s",
+                        )
+                    ),
+                }
+            ),
+        )
 
     async def async_step_unit(self, user_input: dict[str, Any] | None = None):
         """Edit one indoor unit at a time."""
@@ -243,6 +286,7 @@ class GreeCentralLanOptionsFlow(config_entries.OptionsFlowWithReload):
                     data={
                         CONF_DISPLAY_NAMES: display_names,
                         CONF_TEMPERATURE_SENSORS: sensors,
+                        CONF_SYNC_INTERVAL_SECONDS: self._sync_interval_seconds,
                     },
                 )
             return await self.async_step_unit()

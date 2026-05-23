@@ -11,7 +11,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
+from .const import DEFAULT_SYNC_INTERVAL_SECONDS, DOMAIN, CONF_SYNC_INTERVAL_SECONDS
 from .protocol import GreeCentralClient, GreeProtocolError
 
 LOGGER = logging.getLogger(__name__)
@@ -29,7 +29,13 @@ class GreeCentralRuntimeData:
 
 async def async_setup_entry(hass: HomeAssistant, entry: GreeCentralConfigEntry) -> bool:
     """Set up the integration from a config entry."""
-    client = GreeCentralClient(hass, entry.data)
+    client = GreeCentralClient(
+        hass,
+        entry.data,
+        sync_interval_seconds=int(
+            entry.options.get(CONF_SYNC_INTERVAL_SECONDS, DEFAULT_SYNC_INTERVAL_SECONDS)
+        ),
+    )
     try:
         bridge = await client.async_setup()
     except GreeProtocolError as err:

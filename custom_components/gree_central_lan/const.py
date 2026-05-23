@@ -17,12 +17,14 @@ CONF_VERSION = "version"
 CONF_SUBDEVICES = "subdevices"
 CONF_DISPLAY_NAMES = "display_names"
 CONF_TEMPERATURE_SENSORS = "temperature_sensors"
+CONF_SYNC_INTERVAL_SECONDS = "sync_interval_seconds"
 
 ATTR_TEMPERATURE_SENSOR = "temperature_sensor"
 
 MIN_TEMP = 16
 MAX_TEMP = 30
 TARGET_TEMP_STEP = 1
+DEFAULT_SYNC_INTERVAL_SECONDS = 0
 
 FAN_AUTO = "auto"
 FAN_LOW = "low"
@@ -50,4 +52,3 @@ DEVICE_TO_HVAC = {
 HVAC_TO_DEVICE = {value: key for key, value in DEVICE_TO_HVAC.items()}
 
 STATUS_COLUMNS = ("Pow", "Mod", "SetTem", "WdSpd")
-

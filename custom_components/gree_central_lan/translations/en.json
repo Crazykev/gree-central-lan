@@ -31,6 +31,13 @@
   },
   "options": {
     "step": {
+      "general": {
+        "title": "General options",
+        "description": "Set the fallback sync interval used to reconcile changes made outside Home Assistant. Set it to 0 to keep pure push mode with no background polling.",
+        "data": {
+          "sync_interval_seconds": "Fallback sync interval"
+        }
+      },
       "unit": {
         "title": "Configure indoor unit",
         "description": "Update {unit_name} ({unit_mac}).",

@@ -6,6 +6,7 @@ import asyncio
 import base64
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 import json
 import logging
 import socket
@@ -18,10 +19,12 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from homeassistant.components.network import async_get_ipv4_broadcast_addresses
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     CONF_MAIN_MAC,
     DEFAULT_DISCOVERY_TIMEOUT,
+    DEFAULT_SYNC_INTERVAL_SECONDS,
     DEFAULT_MAIN_KEY,
     DEFAULT_TIMEOUT,
     STATUS_COLUMNS,
@@ -287,7 +290,13 @@ class _GreeDatagramProtocol(asyncio.DatagramProtocol):
 class GreeCentralClient:
     """Long-lived client that uses a single UDP socket for push-style updates."""
 
-    def __init__(self, hass: HomeAssistant, entry_data: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry_data: dict[str, Any],
+        *,
+        sync_interval_seconds: int = DEFAULT_SYNC_INTERVAL_SECONDS,
+    ) -> None:
         self.hass = hass
         self.host = str(entry_data[CONF_HOST])
         self.port = int(entry_data[CONF_PORT])
@@ -300,6 +309,9 @@ class GreeCentralClient:
         self._listeners: set[Callable[[str], None]] = set()
         self._session_key: str | None = None
         self._states: dict[str, ClimateState] = {}
+        self._sync_interval_seconds = max(0, int(sync_interval_seconds))
+        self._unsubscribe_reconcile: Callable[[], None] | None = None
+        self._reconcile_lock = asyncio.Lock()
         self.available = False
 
     async def async_setup(self) -> BridgeInfo:
@@ -322,12 +334,22 @@ class GreeCentralClient:
         for subdevice in self.bridge.subdevices:
             await self.async_refresh_state(subdevice.mac)
 
+        if self._sync_interval_seconds > 0:
+            self._unsubscribe_reconcile = async_track_time_interval(
+                self.hass,
+                self._async_reconcile_states,
+                timedelta(seconds=self._sync_interval_seconds),
+            )
+
         self.available = True
         return self.bridge
 
     async def async_shutdown(self) -> None:
         """Tear down the client transport."""
         self.available = False
+        if self._unsubscribe_reconcile is not None:
+            self._unsubscribe_reconcile()
+            self._unsubscribe_reconcile = None
         if self._transport is not None:
             self._transport.close()
             self._transport = None
@@ -575,6 +597,20 @@ class GreeCentralClient:
         self.available = True
         for listener in tuple(self._listeners):
             listener(subdevice_mac)
+
+    async def _async_reconcile_states(self, _now) -> None:
+        """Optionally reconcile state for changes made outside this HA session."""
+        if self.bridge is None or self._reconcile_lock.locked():
+            return
+
+        async with self._reconcile_lock:
+            for subdevice in self.bridge.subdevices:
+                try:
+                    await self.async_refresh_state(subdevice.mac)
+                except GreeProtocolError as err:
+                    self.available = False
+                    LOGGER.debug("Reconcile refresh failed for %s: %s", subdevice.mac, err)
+                    break
 
     def _ensure_ready(self) -> None:
         """Guard operations that require an open UDP transport."""
