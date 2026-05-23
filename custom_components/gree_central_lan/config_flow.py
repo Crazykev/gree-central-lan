@@ -17,6 +17,8 @@ from .const import (
     CONF_AREA_ID,
     CONF_AREA_IDS,
     CONF_DISPLAY_NAMES,
+    CONF_IDENTIFY,
+    CONF_MAIN_MAC,
     CONF_SUBDEVICES,
     CONF_SYNC_INTERVAL_SECONDS,
     CONF_TEMPERATURE_SENSORS,
@@ -25,7 +27,12 @@ from .const import (
     DOMAIN,
 )
 from .models import BridgeInfo, SubDeviceInfo
-from .protocol import GreeProtocolError, async_discover_bridges, async_probe_bridge
+from .protocol import (
+    GreeProtocolError,
+    async_discover_bridges,
+    async_identify_subdevice,
+    async_probe_bridge,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -98,6 +105,13 @@ def _existing_area_id_for_subdevice(hass, subdevice_mac: str) -> str:
     """Look up the current room assignment for one indoor unit device."""
     device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, subdevice_mac)})
     return device.area_id if device and device.area_id else ""
+
+
+def _selected_area_id(user_input: dict[str, Any] | None) -> str:
+    """Return the selected area ID or an empty string."""
+    if user_input is None:
+        return ""
+    return str(user_input.get(CONF_AREA_ID) or "")
 
 
 class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -187,33 +201,89 @@ class GreeCentralLanConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         subdevice = self._subdevices[self._unit_index]
         defaults = self._existing_defaults(subdevice)
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._pending_name = user_input[CONF_NAME].strip() or defaults[CONF_NAME]
-            self._pending_area_id = str(user_input[CONF_AREA_ID])
+            selected_name = user_input[CONF_NAME].strip() or defaults[CONF_NAME]
+            selected_area_id = _selected_area_id(user_input)
+
+            if user_input.get(CONF_IDENTIFY):
+                try:
+                    await self._async_identify_current_subdevice(subdevice)
+                except GreeProtocolError:
+                    errors["base"] = "cannot_connect"
+                return self._show_unit_form(
+                    subdevice,
+                    defaults,
+                    selected_name=selected_name,
+                    selected_area_id=selected_area_id,
+                    errors=errors,
+                )
+
+            if not selected_area_id:
+                errors["base"] = "area_required"
+                return self._show_unit_form(
+                    subdevice,
+                    defaults,
+                    selected_name=selected_name,
+                    selected_area_id=selected_area_id,
+                    errors=errors,
+                )
+
+            self._pending_name = selected_name
+            self._pending_area_id = selected_area_id
             return await self.async_step_sensor()
 
+        return self._show_unit_form(subdevice, defaults)
+
+    def _show_unit_form(
+        self,
+        subdevice: SubDeviceInfo,
+        defaults: Mapping[str, str],
+        *,
+        selected_name: str | None = None,
+        selected_area_id: str | None = None,
+        errors: dict[str, str] | None = None,
+    ):
+        """Render the unit form with optional in-progress values."""
+        name = selected_name or defaults[CONF_NAME]
+        area_id = (
+            selected_area_id
+            if selected_area_id is not None
+            else defaults.get(CONF_AREA_ID, "")
+        )
+
         area_field: Any
-        if defaults.get(CONF_AREA_ID):
-            area_field = vol.Required(
-                CONF_AREA_ID,
-                default=defaults[CONF_AREA_ID],
-            )
+        if area_id:
+            area_field = vol.Optional(CONF_AREA_ID, default=area_id)
         else:
-            area_field = vol.Required(CONF_AREA_ID)
+            area_field = vol.Optional(CONF_AREA_ID)
 
         return self.async_show_form(
             step_id="unit",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_NAME, default=name): str,
                     area_field: selector.AreaSelector(),
+                    vol.Optional(CONF_IDENTIFY, default=False): selector.BooleanSelector(),
                 }
             ),
             description_placeholders={
-                "unit_name": defaults[CONF_NAME],
+                "unit_name": name,
                 "unit_mac": subdevice.mac,
             },
+            errors=errors,
+        )
+
+    async def _async_identify_current_subdevice(self, subdevice: SubDeviceInfo) -> None:
+        """Briefly toggle the active indoor unit so the user can locate it."""
+        if self._bridge is None:
+            raise GreeProtocolError("Controller metadata is not available")
+        await async_identify_subdevice(
+            self._bridge.host,
+            self._bridge.port,
+            self._bridge.mac,
+            subdevice.mac,
         )
 
     async def async_step_sensor(self, user_input: dict[str, Any] | None = None):
@@ -405,33 +475,87 @@ class GreeCentralLanOptionsFlow(config_entries.OptionsFlowWithReload):
         """Edit the display name and room for one indoor unit."""
         subdevice = self._subdevices[self._unit_index]
         defaults = self._defaults_for(subdevice)
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._pending_name = user_input[CONF_NAME].strip() or defaults[CONF_NAME]
-            self._pending_area_id = str(user_input[CONF_AREA_ID])
+            selected_name = user_input[CONF_NAME].strip() or defaults[CONF_NAME]
+            selected_area_id = _selected_area_id(user_input)
+
+            if user_input.get(CONF_IDENTIFY):
+                try:
+                    await self._async_identify_current_subdevice(subdevice)
+                except GreeProtocolError:
+                    errors["base"] = "cannot_connect"
+                return self._show_unit_form(
+                    subdevice,
+                    defaults,
+                    selected_name=selected_name,
+                    selected_area_id=selected_area_id,
+                    errors=errors,
+                )
+
+            if not selected_area_id:
+                errors["base"] = "area_required"
+                return self._show_unit_form(
+                    subdevice,
+                    defaults,
+                    selected_name=selected_name,
+                    selected_area_id=selected_area_id,
+                    errors=errors,
+                )
+
+            self._pending_name = selected_name
+            self._pending_area_id = selected_area_id
             return await self.async_step_sensor()
 
+        return self._show_unit_form(subdevice, defaults)
+
+    def _show_unit_form(
+        self,
+        subdevice: SubDeviceInfo,
+        defaults: Mapping[str, str],
+        *,
+        selected_name: str | None = None,
+        selected_area_id: str | None = None,
+        errors: dict[str, str] | None = None,
+    ):
+        """Render the options form for one indoor unit."""
+        name = selected_name or defaults[CONF_NAME]
+        area_id = (
+            selected_area_id
+            if selected_area_id is not None
+            else defaults.get(CONF_AREA_ID, "")
+        )
+
         area_field: Any
-        if defaults.get(CONF_AREA_ID):
-            area_field = vol.Required(
-                CONF_AREA_ID,
-                default=defaults[CONF_AREA_ID],
-            )
+        if area_id:
+            area_field = vol.Optional(CONF_AREA_ID, default=area_id)
         else:
-            area_field = vol.Required(CONF_AREA_ID)
+            area_field = vol.Optional(CONF_AREA_ID)
 
         return self.async_show_form(
             step_id="unit",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_NAME, default=name): str,
                     area_field: selector.AreaSelector(),
+                    vol.Optional(CONF_IDENTIFY, default=False): selector.BooleanSelector(),
                 }
             ),
             description_placeholders={
-                "unit_name": defaults[CONF_NAME],
+                "unit_name": name,
                 "unit_mac": subdevice.mac,
             },
+            errors=errors,
+        )
+
+    async def _async_identify_current_subdevice(self, subdevice: SubDeviceInfo) -> None:
+        """Briefly toggle the active indoor unit so the user can locate it."""
+        await async_identify_subdevice(
+            str(self._config_entry.data[CONF_HOST]),
+            int(self._config_entry.data[CONF_PORT]),
+            str(self._config_entry.data[CONF_MAIN_MAC]),
+            subdevice.mac,
         )
 
     async def async_step_sensor(self, user_input: dict[str, Any] | None = None):

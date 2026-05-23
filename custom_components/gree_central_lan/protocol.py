@@ -32,6 +32,11 @@ from .const import (
 from .models import BridgeInfo, ClimateState, SubDeviceInfo
 
 LOGGER = logging.getLogger(__name__)
+IDENTIFY_ON_SECONDS = 6
+IDENTIFY_OFF_SECONDS = 2
+IDENTIFY_MODE = 1
+IDENTIFY_TARGET_TEMPERATURE = 26
+IDENTIFY_FAN_SPEED = 5
 
 
 class GreeProtocolError(Exception):
@@ -191,6 +196,187 @@ def probe_bridge_sync(
     )
 
 
+def _bind_session_sync(host: str, port: int, main_mac: str, timeout: float) -> str:
+    """Bind to a controller and return the temporary session key."""
+    bind = _send_request_sync(
+        host,
+        port,
+        {
+            "cid": "app",
+            "i": 1,
+            "pack": encrypt_payload(
+                {"mac": main_mac, "t": "bind", "uid": "0"},
+                DEFAULT_MAIN_KEY,
+            ),
+            "t": "pack",
+            "tcid": main_mac,
+            "uid": 0,
+        },
+        decrypt_key=DEFAULT_MAIN_KEY,
+        timeout=timeout,
+    )
+    if bind.get("t") != "bindOk":
+        raise GreeProtocolError(f"Expected bindOk packet from {host}, got {bind!r}")
+    return str(bind["key"])
+
+
+def _status_request_sync(
+    host: str,
+    port: int,
+    *,
+    main_mac: str,
+    session_key: str,
+    subdevice_mac: str,
+    timeout: float,
+) -> dict[str, Any]:
+    """Fetch the current status packet for one indoor unit."""
+    packet = _send_request_sync(
+        host,
+        port,
+        {
+            "cid": "app",
+            "i": 0,
+            "pack": encrypt_payload(
+                {"cols": list(STATUS_COLUMNS), "mac": subdevice_mac, "t": "status"},
+                session_key,
+            ),
+            "t": "pack",
+            "tcid": main_mac,
+            "uid": 0,
+        },
+        decrypt_key=session_key,
+        timeout=timeout,
+    )
+    if packet.get("t") != "dat" or packet.get("mac") != subdevice_mac:
+        raise GreeProtocolError(
+            f"Expected dat packet for {subdevice_mac} from {host}, got {packet!r}"
+        )
+    return packet
+
+
+def _send_command_sync(
+    host: str,
+    port: int,
+    *,
+    main_mac: str,
+    session_key: str,
+    subdevice_mac: str,
+    updates: dict[str, int],
+    timeout: float,
+) -> dict[str, Any]:
+    """Send one command packet to an indoor unit."""
+    packet = _send_request_sync(
+        host,
+        port,
+        {
+            "cid": "app",
+            "i": 0,
+            "pack": encrypt_payload(
+                {
+                    "opt": list(updates.keys()),
+                    "p": [int(value) for value in updates.values()],
+                    "t": "cmd",
+                    "sub": subdevice_mac,
+                },
+                session_key,
+            ),
+            "t": "pack",
+            "tcid": main_mac,
+            "uid": 0,
+        },
+        decrypt_key=session_key,
+        timeout=timeout,
+    )
+    if packet.get("t") != "res" or packet.get("mac") != subdevice_mac:
+        raise GreeProtocolError(
+            f"Expected res packet for {subdevice_mac} from {host}, got {packet!r}"
+        )
+    return packet
+
+
+def identify_subdevice_sync(
+    host: str,
+    port: int,
+    main_mac: str,
+    subdevice_mac: str,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> None:
+    """Briefly toggle one indoor unit so the user can identify it physically."""
+    session_key = _bind_session_sync(host, port, main_mac, timeout)
+    status_packet = _status_request_sync(
+        host,
+        port,
+        main_mac=main_mac,
+        session_key=session_key,
+        subdevice_mac=subdevice_mac,
+        timeout=timeout,
+    )
+    state = ClimateState()
+    state.apply_columns(
+        [str(column) for column in status_packet.get("cols", [])],
+        [int(value) for value in status_packet.get("dat", [])],
+    )
+
+    if state.power == 1:
+        restore = {"Pow": 1}
+        if state.mode is not None:
+            restore["Mod"] = state.mode
+        if state.target_temperature is not None:
+            restore["SetTem"] = state.target_temperature
+        if state.fan_speed is not None:
+            restore["WdSpd"] = state.fan_speed
+
+        _send_command_sync(
+            host,
+            port,
+            main_mac=main_mac,
+            session_key=session_key,
+            subdevice_mac=subdevice_mac,
+            updates={"Pow": 0},
+            timeout=timeout,
+        )
+        time.sleep(IDENTIFY_OFF_SECONDS)
+        _send_command_sync(
+            host,
+            port,
+            main_mac=main_mac,
+            session_key=session_key,
+            subdevice_mac=subdevice_mac,
+            updates=restore,
+            timeout=timeout,
+        )
+        return
+
+    _send_command_sync(
+        host,
+        port,
+        main_mac=main_mac,
+        session_key=session_key,
+        subdevice_mac=subdevice_mac,
+        updates={
+            "Pow": 1,
+            "Mod": state.mode if state.mode is not None else IDENTIFY_MODE,
+            "SetTem": (
+                state.target_temperature
+                if state.target_temperature is not None
+                else IDENTIFY_TARGET_TEMPERATURE
+            ),
+            "WdSpd": IDENTIFY_FAN_SPEED,
+        },
+        timeout=timeout,
+    )
+    time.sleep(IDENTIFY_ON_SECONDS)
+    _send_command_sync(
+        host,
+        port,
+        main_mac=main_mac,
+        session_key=session_key,
+        subdevice_mac=subdevice_mac,
+        updates={"Pow": 0},
+        timeout=timeout,
+    )
+
+
 def discover_bridges_sync(
     broadcast_addresses: list[str],
     port: int = 7000,
@@ -258,6 +444,23 @@ async def async_discover_bridges(
     """Discover controllers by broadcasting to each local IPv4 broadcast address."""
     broadcast_addresses = [str(address) for address in await async_get_ipv4_broadcast_addresses(hass)]
     return await asyncio.to_thread(discover_bridges_sync, broadcast_addresses, port, DEFAULT_DISCOVERY_TIMEOUT)
+
+
+async def async_identify_subdevice(
+    host: str,
+    port: int,
+    main_mac: str,
+    subdevice_mac: str,
+) -> None:
+    """Async wrapper around the one-shot indoor-unit identify action."""
+    await asyncio.to_thread(
+        identify_subdevice_sync,
+        host,
+        port,
+        main_mac,
+        subdevice_mac,
+        DEFAULT_TIMEOUT,
+    )
 
 
 @dataclass(slots=True)

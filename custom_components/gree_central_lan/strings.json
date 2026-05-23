@@ -18,10 +18,11 @@
       },
       "unit": {
         "title": "Configure indoor unit",
-        "description": "Configure {unit_name} ({unit_mac}). Choose the display name and room for this indoor unit.",
+        "description": "Configure {unit_name} ({unit_mac}). Choose the display name and room for this indoor unit. If you are not sure which room this is, turn on \"Identify this indoor unit\" and submit once. The integration will briefly toggle this unit so you can locate it.",
         "data": {
           "name": "Display name",
-          "area_id": "Room"
+          "area_id": "Room",
+          "identify": "Identify this indoor unit"
         }
       },
       "sensor": {
@@ -33,10 +34,15 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to reach the Gree controller"
+      "cannot_connect": "Failed to reach the Gree controller",
+      "area_required": "Choose a room before continuing"
     }
   },
   "options": {
+    "error": {
+      "cannot_connect": "Failed to reach the Gree controller",
+      "area_required": "Choose a room before continuing"
+    },
     "step": {
       "general": {
         "title": "General options",
@@ -47,10 +53,11 @@
       },
       "unit": {
         "title": "Configure indoor unit",
-        "description": "Update the display name and room for {unit_name} ({unit_mac}).",
+        "description": "Update the display name and room for {unit_name} ({unit_mac}). If you are not sure which room this is, turn on \"Identify this indoor unit\" and submit once. The integration will briefly toggle this unit so you can locate it.",
         "data": {
           "name": "Display name",
-          "area_id": "Room"
+          "area_id": "Room",
+          "identify": "Identify this indoor unit"
         }
       },
       "sensor": {

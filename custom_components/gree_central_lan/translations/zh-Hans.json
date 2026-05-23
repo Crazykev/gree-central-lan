@@ -18,10 +18,11 @@
       },
       "unit": {
         "title": "配置内机",
-        "description": "配置 {unit_name} ({unit_mac})。先为这台内机选择显示名称和房间。",
+        "description": "配置 {unit_name} ({unit_mac})。先为这台内机选择显示名称和房间。如果你暂时还不知道这台内机对应哪个房间，可以先打开“识别这台内机”并提交一次，集成会短暂切换这台空调的开关状态，方便你确认位置。",
         "data": {
           "name": "显示名称",
-          "area_id": "房间"
+          "area_id": "房间",
+          "identify": "识别这台内机"
         }
       },
       "sensor": {
@@ -33,10 +34,15 @@
       }
     },
     "error": {
-      "cannot_connect": "无法连接到格力控制器"
+      "cannot_connect": "无法连接到格力控制器",
+      "area_required": "继续之前请先选择房间"
     }
   },
   "options": {
+    "error": {
+      "cannot_connect": "无法连接到格力控制器",
+      "area_required": "继续之前请先选择房间"
+    },
     "step": {
       "general": {
         "title": "通用选项",
@@ -47,10 +53,11 @@
       },
       "unit": {
         "title": "配置内机",
-        "description": "更新 {unit_name} ({unit_mac}) 的显示名称和房间。",
+        "description": "更新 {unit_name} ({unit_mac}) 的显示名称和房间。如果你暂时还不知道这台内机对应哪个房间，可以先打开“识别这台内机”并提交一次，集成会短暂切换这台空调的开关状态，方便你确认位置。",
         "data": {
           "name": "显示名称",
-          "area_id": "房间"
+          "area_id": "房间",
+          "identify": "识别这台内机"
         }
       },
       "sensor": {
