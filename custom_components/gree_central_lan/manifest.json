@@ -1,0 +1,17 @@
+{
+  "domain": "gree_central_lan",
+  "name": "Gree Central LAN",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [
+    "network"
+  ],
+  "documentation": "https://github.com/Crazykev/gree-central-lan",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "loggers": [
+    "custom_components.gree_central_lan"
+  ],
+  "requirements": [],
+  "version": "0.1.0"
+}

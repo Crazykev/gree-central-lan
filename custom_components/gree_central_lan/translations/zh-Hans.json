@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "选择控制器",
+        "description": "请选择当前局域网内发现到的格力中央空调主控，或切换到手动输入 IP。",
+        "data": {
+          "bridge": "控制器"
+        }
+      },
+      "manual": {
+        "title": "连接控制器",
+        "description": "输入格力中央空调主控的 IP 地址。",
+        "data": {
+          "host": "控制器 IP 地址",
+          "port": "UDP 端口"
+        }
+      },
+      "unit": {
+        "title": "配置内机",
+        "description": "配置 {unit_name} ({unit_mac})。所选温度计会作为 climate 卡片中的当前温度显示。",
+        "data": {
+          "name": "显示名称",
+          "temperature_sensor": "温度传感器"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到格力控制器"
+    }
+  },
+  "options": {
+    "step": {
+      "unit": {
+        "title": "配置内机",
+        "description": "更新 {unit_name} ({unit_mac}) 的显示名称和温度计。",
+        "data": {
+          "name": "显示名称",
+          "temperature_sensor": "温度传感器"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Choose controller",
+        "description": "Pick a discovered Gree central controller on this LAN, or switch to manual IP entry.",
+        "data": {
+          "bridge": "Controller"
+        }
+      },
+      "manual": {
+        "title": "Connect controller",
+        "description": "Enter the IP address of the Gree central controller.",
+        "data": {
+          "host": "Controller IP address",
+          "port": "UDP port"
+        }
+      },
+      "unit": {
+        "title": "Configure indoor unit",
+        "description": "Configure {unit_name} ({unit_mac}). The selected temperature sensor will be shown as the climate card's current temperature.",
+        "data": {
+          "name": "Display name",
+          "temperature_sensor": "Temperature sensor"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to reach the Gree controller"
+    }
+  },
+  "options": {
+    "step": {
+      "unit": {
+        "title": "Configure indoor unit",
+        "description": "Update {unit_name} ({unit_mac}).",
+        "data": {
+          "name": "Display name",
+          "temperature_sensor": "Temperature sensor"
+        }
+      }
+    }
+  }
+}
