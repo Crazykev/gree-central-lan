@@ -67,6 +67,8 @@ class GreeCentralClimateEntity(ClimateEntity):
     """A single indoor unit exposed as a Home Assistant climate entity."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = None
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.FAN_MODE
@@ -97,7 +99,17 @@ class GreeCentralClimateEntity(ClimateEntity):
         self._unsubscribe_sensor_listener: Callable[[], None] | None = None
 
         self._attr_unique_id = subdevice.mac
-        self._attr_name = display_name
+        bridge = client.bridge
+        manufacturer = bridge.brand if bridge is not None else "Gree"
+        model = bridge.model if bridge is not None else "gree"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._subdevice.mac)},
+            name=self._display_name,
+            manufacturer=manufacturer,
+            model=f"{model} indoor unit",
+            suggested_area=None,
+            via_device=(DOMAIN, client.main_mac),
+        )
 
     async def async_added_to_hass(self) -> None:
         """Register listeners after Home Assistant adds the entity."""
@@ -128,20 +140,6 @@ class GreeCentralClimateEntity(ClimateEntity):
     def available(self) -> bool:
         """Return whether the controller is reachable and the unit has state."""
         return self._client.available and self._state is not None and self._state.power is not None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Expose one device per indoor unit."""
-        bridge = self._client.bridge
-        manufacturer = bridge.brand if bridge is not None else "Gree"
-        model = bridge.model if bridge is not None else "gree"
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._subdevice.mac)},
-            name=self._display_name,
-            manufacturer=manufacturer,
-            model=f"{model} indoor unit",
-            suggested_area=None,
-        )
 
     @property
     def current_temperature(self) -> float | None:
